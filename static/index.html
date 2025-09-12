@@ -16,25 +16,48 @@
 </head>
 
 <body class="center" onload="SplashT">
-  <div class="f-nav"></div>
-  <div id="particles-js">
-    <script rel="preload" src="https://cdn.jsdelivr.net/particles.js/2.0.0/"></script>
-    <div class="main">
-      <h1 class="title">&#73;&#110;&#116;&#101;&#114;&#115;&#116;&#101;&#108;&#108;&#97;&#114;</h1>
-      <p id="splash"></p>
-      <div class="search-container">
-        <form id="fv" method="POST">
-          <input id="iv" class="search-home" placeholder="Search or enter a URL" type="text" />
-        </form>
-      </div>
+  <!-- ===== LOCK SCREEN (client-side) ===== -->
+  <div id="locked" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,8,15,0.97);z-index:99999;">
+    <div style="width:360px;max-width:90%;background:#0f1724;border-radius:12px;padding:22px 20px;box-shadow:0 10px 30px rgba(0,0,0,0.6);text-align:center;color:#e6eef8;">
+      <h2 style="margin:0 0 10px;font-weight:600">Protected</h2>
+      <p style="margin:0 0 14px;opacity:0.85;font-size:0.95rem">Enter password to view the site</p>
+
+      <form id="lockForm" style="display:flex;gap:8px;justify-content:center;">
+        <input id="pw" type="password" autocomplete="current-password"
+               placeholder="Password"
+               style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:#0b1220;color:#fff;outline:none" />
+        <button type="submit" style="padding:10px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;cursor:pointer">
+          Unlock
+        </button>
+      </form>
+
+      <p id="lockMsg" style="margin-top:12px;color:#fca5a5;font-size:0.9rem;display:none;"></p>
+
+      <p style="margin-top:14px;font-size:0.8rem;color:#9fb3d8;opacity:0.85">
+        Soft lock — not a secure login. Anyone with devtools can bypass.
+      </p>
     </div>
   </div>
-  <script src="assets/js/005.js?v=000"></script>
-  <script src="/assets/js/004.js?v=000"></script>
-  <script src="./assets/mathematics/bundle.js?v=2025-04-15"></script>
-  <script src="./assets/mathematics/config.js?v=2025-04-15"></script>
-  <script src="assets/js/003.js?v=000"></script>
-  <script src="/assets/js/001.js?v=001"></script>
+
+  <!-- ===== APP (hidden until unlock) ===== -->
+  <div id="app" style="display:none;">
+    <div class="f-nav"></div>
+    <div id="particles-js">
+      <script rel="preload" src="https://cdn.jsdelivr.net/particles.js/2.0.0/"></script>
+      <div class="main">
+        <h1 class="title">&#73;&#110;&#116;&#101;&#114;&#115;&#116;&#101;&#108;&#108;&#97;&#114;</h1>
+        <p id="splash"></p>
+        <div class="search-container">
+          <form id="fv" method="POST">
+            <input id="iv" class="search-home" placeholder="Search or enter a URL" type="text" />
+          </form>
+        </div>
+      </div>
+    </div>
+    <!-- NOTE: main app scripts will be injected dynamically after unlock -->
+  </div>
+
+  <!-- ===== Analytics (left as-is) ===== -->
   <!-- DO NOT REMOVE-->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-WKJQ5QHQTJ"></script>
   <script>
@@ -47,6 +70,92 @@
     gtag("config", "G-WKJQ5QHQTJ")
   </script>
   <!-- DO NOT REMOVE-->
+
+  <!-- ===== Unlock + dynamic script loader ===== -->
+  <script>
+    (function () {
+      // ===== CONFIGURE THIS PASSWORD =====
+      // Change this to the password you want. This is client-side and not secure!
+      const PASSWORD = 'letmein';
+
+      // List of internal script sources (in order). These will be dynamically injected after unlock.
+      const appScripts = [
+        'assets/js/005.js?v=000',
+        '/assets/js/004.js?v=000',
+        './assets/mathematics/bundle.js?v=2025-04-15',
+        './assets/mathematics/config.js?v=2025-04-15',
+        'assets/js/003.js?v=000',
+        '/assets/js/001.js?v=001'
+      ];
+
+      const lockDiv = document.getElementById('locked');
+      const appDiv = document.getElementById('app');
+      const form = document.getElementById('lockForm');
+      const pwInput = document.getElementById('pw');
+      const lockMsg = document.getElementById('lockMsg');
+
+      // Auto-unlock if user previously unlocked (soft convenience)
+      try {
+        const unlocked = localStorage.getItem('interstellar_unlocked_v1');
+        if (unlocked === '1') {
+          unlockSite(false);
+        }
+      } catch (e) { /* ignore */ }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const val = pwInput.value || '';
+        if (val === PASSWORD) {
+          // success
+          try { localStorage.setItem('interstellar_unlocked_v1', '1'); } catch(e) {}
+          unlockSite(true);
+        } else {
+          lockMsg.style.display = 'block';
+          lockMsg.textContent = 'Wrong password — try again.';
+          pwInput.value = '';
+          pwInput.focus();
+        }
+      });
+
+      // Pressing ESC clears local unlock flag (optional convenience)
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          try { localStorage.removeItem('interstellar_unlocked_v1'); } catch (err) {}
+          lockMsg.style.display = 'block';
+          lockMsg.textContent = 'Unlocked state cleared.';
+        }
+      });
+
+      function unlockSite(withAnimation) {
+        // Hide lock and show app
+        lockDiv.style.display = 'none';
+        appDiv.style.display = '';
+
+        // Dynamically add each script in order. If a script fails to load, continue.
+        loadScriptsSequentially(appScripts, 0, function () {
+          // after all scripts loaded (or attempted) we can optionally call an init function if the app expects one
+          // If Interstellar has a global init function (example: `window.initInterstellar()`), you could call it here.
+        });
+      }
+
+      function loadScriptsSequentially(list, idx, cb) {
+        if (idx >= list.length) { if (cb) cb(); return; }
+        const src = list[idx];
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false; // preserve execution order
+        s.onload = function () {
+          loadScriptsSequentially(list, idx + 1, cb);
+        };
+        s.onerror = function () {
+          // try to continue even if one fails
+          console.warn('Failed loading script:', src);
+          loadScriptsSequentially(list, idx + 1, cb);
+        };
+        document.body.appendChild(s);
+      }
+    })();
+  </script>
 </body>
 
 </html>
