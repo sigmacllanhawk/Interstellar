@@ -8,9 +8,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="shortcut icon" id="tab-favicon" href="favicon.png" />
   <title id="t">Home</title>
+
+  <!-- ✅ Boxicons for icons -->
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+
+  <!-- Existing styles -->
   <link rel="stylesheet" href="/assets/css/global.css?v=6" />
   <link rel="stylesheet" href="/assets/css/h.css?v=01" />
   <link rel="stylesheet" href="/assets/css/nav.css?v=01" />
+
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6840529569014734"
     crossorigin="anonymous"></script>
 </head>
@@ -74,11 +80,8 @@
   <!-- ===== Unlock + dynamic script loader ===== -->
   <script>
     (function () {
-      // ===== CONFIGURE THIS PASSWORD =====
-      // Change this to the password you want. This is client-side and not secure!
       const PASSWORD = 'letmein';
 
-      // List of internal script sources (in order). These will be dynamically injected after unlock.
       const appScripts = [
         'assets/js/005.js?v=000',
         '/assets/js/004.js?v=000',
@@ -94,19 +97,15 @@
       const pwInput = document.getElementById('pw');
       const lockMsg = document.getElementById('lockMsg');
 
-      // Auto-unlock if user previously unlocked (soft convenience)
       try {
         const unlocked = localStorage.getItem('interstellar_unlocked_v1');
-        if (unlocked === '1') {
-          unlockSite(false);
-        }
-      } catch (e) { /* ignore */ }
+        if (unlocked === '1') unlockSite(false);
+      } catch (e) { }
 
       form.addEventListener('submit', function (e) {
         e.preventDefault();
         const val = pwInput.value || '';
         if (val === PASSWORD) {
-          // success
           try { localStorage.setItem('interstellar_unlocked_v1', '1'); } catch(e) {}
           unlockSite(true);
         } else {
@@ -117,7 +116,6 @@
         }
       });
 
-      // Pressing ESC clears local unlock flag (optional convenience)
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
           try { localStorage.removeItem('interstellar_unlocked_v1'); } catch (err) {}
@@ -126,31 +124,22 @@
         }
       });
 
-      function unlockSite(withAnimation) {
-        // Hide lock and show app
+      function unlockSite() {
         lockDiv.style.display = 'none';
         appDiv.style.display = '';
-
-        // Dynamically add each script in order. If a script fails to load, continue.
-        loadScriptsSequentially(appScripts, 0, function () {
-          // after all scripts loaded (or attempted) we can optionally call an init function if the app expects one
-          // If Interstellar has a global init function (example: `window.initInterstellar()`), you could call it here.
-        });
+        loadScriptsSequentially(appScripts, 0);
       }
 
-      function loadScriptsSequentially(list, idx, cb) {
-        if (idx >= list.length) { if (cb) cb(); return; }
+      function loadScriptsSequentially(list, idx) {
+        if (idx >= list.length) return;
         const src = list[idx];
         const s = document.createElement('script');
         s.src = src;
-        s.async = false; // preserve execution order
-        s.onload = function () {
-          loadScriptsSequentially(list, idx + 1, cb);
-        };
-        s.onerror = function () {
-          // try to continue even if one fails
+        s.async = false;
+        s.onload = () => loadScriptsSequentially(list, idx + 1);
+        s.onerror = () => {
           console.warn('Failed loading script:', src);
-          loadScriptsSequentially(list, idx + 1, cb);
+          loadScriptsSequentially(list, idx + 1);
         };
         document.body.appendChild(s);
       }
