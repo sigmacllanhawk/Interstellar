@@ -3,10 +3,17 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-COPY ["package.json", "./"]
+# Copy dependency files
+COPY ["package.json", "package-lock.json*", "./"]
 
-RUN npm install
+# Install only production deps
+RUN npm install --production
 
+# Copy the rest of the source
 COPY . .
 
-CMD [ "node", "index.js" ]
+# Expose port (adjust if your app uses a different one)
+EXPOSE 3000
+
+# Start the app
+CMD ["node", "index.js"]
